@@ -1,0 +1,10 @@
+<root>
+$%boolean_is%DocRef%is_header%true$
+    <header>Willkommen zurück</header>
+$%boolean_is_end$
+    <content>
+        <section>Intro</section>
+        <section>$% username $</section>
+        <section>Zusatz</section>
+    </content>
+</root>
