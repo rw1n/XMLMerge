@@ -1,3 +1,3 @@
 package com.id.model;
 
-public record DiffOp(ChangeType type, int index) {}
+public record DiffOp(DiffType type, int index) {}

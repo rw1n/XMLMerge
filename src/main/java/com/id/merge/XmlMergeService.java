@@ -46,37 +46,69 @@ public class XmlMergeService {
     }
 
     private void applyChange(Element root, Change change) {
-        Element targetParent = findParentByPath(root, change.getPath());
-        if (targetParent == null) return;
+        Element parent = findParentByPath(root, change.getPath());
+        if (parent == null) return;
 
-        String nodeName = extractElementName(change.getPath());
-        int index = extractIndex(change.getPath()) - 1;
+        String name = extractElementName(change.getPath());
+        // WICHTIG: Index nur aus dem letzten Segment ziehen (z.B. "item[2]")
+        int nth = extractIndex(lastSegment(change.getPath())) - 1; // 0-basiert
 
         switch (change.getType()) {
             case ADD -> {
                 Element toAdd = change.getNewElement().clone();
-                List<Element> children = targetParent.getChildren(nodeName);
-                if (index >= 0 && index <= children.size()) {
-                    children.add(index, toAdd);
-                    targetParent.removeChildren(nodeName);
-                    targetParent.addContent(children);
-                } else {
-                    targetParent.addContent(toAdd);
-                }
+                int insertPos = findGlobalInsertPosition(parent, name, nth);
+                if (insertPos < 0) parent.addContent(toAdd);
+                else parent.addContent(insertPos, toAdd);
             }
             case REMOVE -> {
-                List<Element> children = targetParent.getChildren(nodeName);
-                if (index >= 0 && index < children.size()) {
-                    targetParent.removeContent(children.get(index));
-                }
+                Element target = findNthChildByName(parent, name, nth);
+                if (target != null) parent.removeContent(target);
             }
             case MODIFY -> {
-                List<Element> children = targetParent.getChildren(nodeName);
-                if (index >= 0 && index < children.size()) {
-                    targetParent.setContent(targetParent.indexOf(children.get(index)), change.getNewElement().clone());
+                Element target = findNthChildByName(parent, name, nth);
+                if (target != null) {
+                    int globalIdx = parent.indexOf(target);
+                    parent.setContent(globalIdx, change.getNewElement().clone());
                 }
             }
         }
+    }
+
+    private String lastSegment(String path) {
+        String[] parts = path.split("/");
+        return parts[parts.length - 1];
+    }
+
+    private Element findNthChildByName(Element parent, String name, int nth) {
+        int count = 0;
+        for (org.jdom2.Content c : parent.getContent()) {
+            if (c instanceof Element e && e.getName().equals(name)) {
+                if (count == nth) return e;
+                count++;
+            }
+        }
+        return null;
+    }
+
+    // Ermittelt die globale Einfügeposition im Parent-Content für das n-te gleichnamige Element
+    private int findGlobalInsertPosition(Element parent, String name, int nth) {
+        if (nth <= 0) {
+            // vor das erste gleichnamige (oder ans Ende, falls keines existiert)
+            for (int i = 0; i < parent.getContentSize(); i++) {
+                org.jdom2.Content c = parent.getContent(i);
+                if (c instanceof Element e && e.getName().equals(name)) return i;
+            }
+            return parent.getContentSize();
+        }
+        int count = 0;
+        for (int i = 0; i < parent.getContentSize(); i++) {
+            org.jdom2.Content c = parent.getContent(i);
+            if (c instanceof Element e && e.getName().equals(name)) {
+                if (count == nth - 1) return i + 1; // hinter das (nth-1)-te
+                count++;
+            }
+        }
+        return parent.getContentSize();
     }
 
     private Element findParentByPath(Element root, String fullPath) {
